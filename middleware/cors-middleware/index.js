@@ -1,6 +1,11 @@
 import cors from "cors";
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+];
+
 export default cors({
-    origin: process.env.CLIENT_URL,
-    credentials: true,
+  origin: allowedOrigins,
+  credentials: true,
 });
