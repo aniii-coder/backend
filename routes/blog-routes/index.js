@@ -1,29 +1,29 @@
 import { Router } from "express";
 import { getAllClientsController } from "../../controllers/client/index.js";
 import { addCommentController, deleteBlogController, getAllBlogs, getSpecificBlog, likeBlogController, postBlogController, updateBlogController } from "../../controllers/blog-controller/index.js";
-import upload  from "../../middleware/upload-middleware/index.js";
+import upload from "../../middleware/upload-middleware/index.js";
 import { authMiddleware } from "../../middleware/auth-middleware/index.js";
 
 const router = Router();
-console.log("Blog router loaded");
+// console.log("Blog router loaded");
 
 
-router.get("/getAll",  getAllBlogs)
-router.get("/:id",  getSpecificBlog)
+router.get("/getAll", getAllBlogs)
+router.get("/:id", getSpecificBlog)
 router.patch("/:id/like", authMiddleware, likeBlogController)
 router.post("/:id/comment", authMiddleware, addCommentController);
-router.delete("/:blog_id",authMiddleware, deleteBlogController);
+router.delete("/:blog_id", authMiddleware, deleteBlogController);
 router.post("/create", (req, res) => {
 
   upload.fields([
     { name: "thumbnail", maxCount: 1 },
     { name: "banner", maxCount: 1 }
-  ])(req, res, function(err) {
+  ])(req, res, function (err) {
 
-    console.log("Upload callback");
+    // console.log("Upload callback");
 
     if (err) {
-      console.log(err);
+      // console.log(err);
 
       return res.status(500).json({
         success: false,
@@ -32,29 +32,29 @@ router.post("/create", (req, res) => {
       });
     }
 
-    console.log(req.files);
+    // console.log(req.files);
 
     postBlogController(req, res);
   });
 
 
-  
-  
+
+
 });
 router.put("/update/:blog_id", (req, res) => {
   upload.fields([
     { name: "thumbnail", maxCount: 1 },
     { name: "banner", maxCount: 1 }
-  ])(req, res, function(err) {
+  ])(req, res, function (err) {
     if (err) {
-      console.error("Cloudinary upload parsing error:", err);
+      // console.error("Cloudinary upload parsing error:", err);
       return res.status(500).json({
         success: false,
         message: err.message,
         error: err
       });
     }
-    
+
     updateBlogController(req, res);
   });
 });

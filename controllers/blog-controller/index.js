@@ -9,20 +9,24 @@ export const getAllBlogs = async (req, res, next) => {
       offset = 0,
       sort = "newest",
       category,
+      published, // 👈 Extract this parameter from client request query
     } = req.query;
 
-    const blogs = await getAllBlogsServices({
+    const result = await getAllBlogsServices({
       search,
       limit: Number(limit),
       offset: Number(offset),
       sort,
       category,
+      published, // 👈 Pass it downstream into the aggregation service
     });
 
     res.status(200).json({
       success: true,
       message: "Blogs fetched successfully.",
-      ...blogs,
+      analytics: result.analytics,   // Maps cleanly to the structured data block
+      blogs: result.blogs,           // Contains the raw likes/comments arrays
+      pagination: result.pagination, // Contains control tags (limit, offset, hasMore)
     });
   } catch (error) {
     next(error);
@@ -58,7 +62,7 @@ export const deleteBlogController = async (req, res, next) => {
 
 export const getSpecificBlog = async (req, res, next) => {
   try {
-    const { id: identifier } = req.params; 
+    const { id: identifier } = req.params;
 
     if (!identifier) {
       return res.status(400).json({
@@ -91,14 +95,14 @@ export const getSpecificBlog = async (req, res, next) => {
 export const postBlogController = async (req, res, next) => {
   try {
     // 1. Unpack basic explicit string values from req.body
-    const { 
-      title, description, slug, content, 
+    const {
+      title, description, slug, content,
       seoTitle, seoDescription, canonical, schemaMarkup,
-      category, published, clientId 
+      category, published, clientId
     } = req.body;
 
-    console.log("Incoming fields:", req.body);
-    console.log("Incoming files:", req.files);
+    // console.log("Incoming fields:", req.body);
+    // console.log("Incoming files:", req.files);
 
     // 2. Capture uploaded image asset destination references from Multer
     const thumbnail = req.files?.thumbnail?.[0]?.path || null;
@@ -121,9 +125,9 @@ export const postBlogController = async (req, res, next) => {
         parsedSchemaMarkup = JSON.parse(req.body.schemaMarkup);
       }
     } catch (parseError) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Malformed string layout inside fields 'tags', 'tableOfContents', or 'schemaMarkup'." 
+      return res.status(400).json({
+        success: false,
+        message: "Malformed string layout inside fields 'tags', 'tableOfContents', or 'schemaMarkup'."
       });
     }
 
@@ -140,8 +144,8 @@ export const postBlogController = async (req, res, next) => {
       tags,
       tableOfContents,
       likes: [],
-  comments: [],
-      published: published === "false" ? false : true, 
+      comments: [],
+      published: published === "false" ? false : true,
       seo: {
         seoTitle,
         seoDescription,
@@ -154,19 +158,19 @@ export const postBlogController = async (req, res, next) => {
     const newBlog = await createBlogService(blogDataPayload);
 
     if (!newBlog) {
-      return res.status(409).json({ 
-        success: false, 
-        message: "A blog post with this URL slug route configuration already exists." 
+      return res.status(409).json({
+        success: false,
+        message: "A blog post with this URL slug route configuration already exists."
       });
     }
 
-    return res.status(201).json({ 
-      success: true, 
-      data: newBlog 
+    return res.status(201).json({
+      success: true,
+      data: newBlog
     });
 
   } catch (error) {
-    console.error("Critical Backend Failure:", error);
+    // console.error("Critical Backend Failure:", error);
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -176,7 +180,7 @@ export const postBlogController = async (req, res, next) => {
 };
 
 export const updateBlogController = async (req, res, next) => {
-  console.log("hitttt")
+  // console.log("hitttt")
   try {
     const { blog_id } = req.params;
 
@@ -188,15 +192,15 @@ export const updateBlogController = async (req, res, next) => {
     }
 
     // 1. Unpack editable fields from req.body (including fallback URL strings)
-    const { 
-      title, description, slug, content, 
+    const {
+      title, description, slug, content,
       seoTitle, seoDescription, canonical, schemaMarkup,
       category, published, clientId,
       thumbnail: bodyThumbnail, banner: bodyBanner // If the client sent a URL string back
     } = req.body;
 
-    console.log(`Incoming update fields for ID (${blog_id}):`, req.body);
-    console.log("Incoming update files:", req.files);
+    // console.log(`Incoming update fields for ID (${blog_id}):`, req.body);
+    // console.log("Incoming update files:", req.files);
 
     // 2. Prioritize a newly uploaded file path (Cloudinary URL). Fall back to the incoming body string.
     const thumbnail = req.files?.thumbnail?.[0]?.path || bodyThumbnail || null;
@@ -218,9 +222,9 @@ export const updateBlogController = async (req, res, next) => {
         parsedSchemaMarkup = JSON.parse(req.body.schemaMarkup);
       }
     } catch (parseError) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Malformed string layout inside fields 'tags', 'tableOfContents', or 'schemaMarkup'." 
+      return res.status(400).json({
+        success: false,
+        message: "Malformed string layout inside fields 'tags', 'tableOfContents', or 'schemaMarkup'."
       });
     }
 
@@ -234,7 +238,7 @@ export const updateBlogController = async (req, res, next) => {
       clientId,
       tags,
       tableOfContents,
-      thumbnail, 
+      thumbnail,
       banner,
       published: published !== undefined ? (published === "false" ? false : true) : undefined,
       seo: {
@@ -249,20 +253,20 @@ export const updateBlogController = async (req, res, next) => {
     const updatedBlog = await updateBlogService(blog_id, blogDataPayload);
 
     if (!updatedBlog) {
-      return res.status(409).json({ 
-        success: false, 
-        message: "Action aborted. A conflict exists: either the blog post wasn't found or the new slug path is already taken." 
+      return res.status(409).json({
+        success: false,
+        message: "Action aborted. A conflict exists: either the blog post wasn't found or the new slug path is already taken."
       });
     }
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       message: "Blog post updated successfully.",
-      data: updatedBlog 
+      data: updatedBlog
     });
 
   } catch (error) {
-    console.error("Critical Backend Update Failure:", error);
+    // console.error("Critical Backend Update Failure:", error);
     return res.status(500).json({
       success: false,
       message: error.message,
@@ -275,7 +279,7 @@ export const updateBlogController = async (req, res, next) => {
 export const likeBlogController = async (req, res, next) => {
   try {
     const { id: identifier } = req.params;
-    const userId = req.user?.id; 
+    const userId = req.user?.id;
 
     if (!identifier) {
       return res.status(400).json({
@@ -321,7 +325,7 @@ export const addCommentController = async (req, res, next) => {
     if (!blogId) {
       return res.status(400).json({
         success: false,
-        message: "Blog identifier parameter is required." 
+        message: "Blog identifier parameter is required."
       });
     }
 
@@ -345,7 +349,7 @@ export const addCommentController = async (req, res, next) => {
     if (!updatedBlog) {
       return res.status(404).json({
         success: false,
-        message: "The requested blog article could not be found." 
+        message: "The requested blog article could not be found."
       });
     }
 

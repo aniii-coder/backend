@@ -3,39 +3,39 @@
 import { login, loginViaGoogle, signup } from "../../services/auth-services/index.js";
 
 export const loginController = async (req, res, next) => {
-    try {
-      const { data, token } = await login(req.body);
-        console.log('data, token :>> ', data, token);
-        res.cookie("accessToken", token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 60 * 60 * 1000, 
-        });
-        res.status(200).json({
-            success: true,
-            message: "Login successful",
-            data
-        });
-    } catch (error) {
-        next(error);
-    }
+  try {
+    const { data, token } = await login(req.body);
+    // console.log('data, token :>> ', data, token);
+    res.cookie("accessToken", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 1000,
+    });
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      data
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 
 
 export const signupController = async (req, res, next) => {
-    try {
-        const data = await signup(req.body);
+  try {
+    const data = await signup(req.body);
 
-        res.status(201).json({
-            success: true,
-            message: "User registered successfully",
-            data,
-        });
-    } catch (error) {
-        next(error);
-    }
+    res.status(201).json({
+      success: true,
+      message: "User registered successfully",
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const loginViaGoogleController = async (req, res, next) => {
@@ -50,7 +50,7 @@ export const loginViaGoogleController = async (req, res, next) => {
       path: "/",
     });
 
-      console.log('user :>> ', user);
+    // console.log('user :>> ', user);
 
     res.cookie(
       "user",

@@ -5,9 +5,9 @@ export const getAllClients = async () => {
     .find()
     .select("-googleId")
     .sort({ createdAt: -1 })
-    
 
-  console.log('clients with populated blogs :>> ', clients);
+
+  // console.log('clients with populated blogs :>> ', clients);
   return clients;
 };
 
