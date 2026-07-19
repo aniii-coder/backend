@@ -6,15 +6,20 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
+console.log("Allowed Origins:", allowedOrigins);
+
 export default cors({
-  origin: (origin, callback) => {
-    // Allow requests with no Origin (Postman, server-to-server)
+  origin(origin, callback) {
+    console.log("Incoming Origin:", origin);
+
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
+      console.log("Origin Allowed");
       return callback(null, true);
     }
 
+    console.log("Origin Blocked:", origin);
     return callback(new Error(`CORS not allowed for origin: ${origin}`));
   },
   credentials: true,
