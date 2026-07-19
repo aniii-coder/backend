@@ -26,9 +26,9 @@ const syncBlogIds = async () => {
       });
     }
 
-    console.log("✅ Blog IDs synced successfully");
+    // console.log("✅ Blog IDs synced successfully");
   } catch (err) {
-    console.error(err);
+    // console.error(err);
   } finally {
     await mongoose.connection.close();
     process.exit(0);

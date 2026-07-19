@@ -3,7 +3,6 @@ import clientUserModel from "../../models/client-user-model/index.js";
 import blogModel from "../../models/blog-model/index.js";
 
 
-// import blogModel from "../../models/blog-model/index.js";
 
 export const getAllBlogsServices = async ({
   search = "",
@@ -35,69 +34,129 @@ export const getAllBlogsServices = async ({
   }
 
   let sortStage = {};
-
   switch (sort) {
-    case "views":
-      sortStage = { views: -1 };
-      break;
-
-    case "likes":
-      sortStage = { likesCount: -1 };
-      break;
-
-    case "comments":
-      sortStage = { commentsCount: -1 };
-      break;
-
-    case "oldest":
-      sortStage = { createdAt: 1 };
-      break;
-
-    case "az":
-      sortStage = { title: 1 };
-      break;
-
-    case "za":
-      sortStage = { title: -1 };
-      break;
-
+    case "views": sortStage = { views: -1 }; break;
+    case "likes": sortStage = { likesCount: -1 }; break;
+    case "comments": sortStage = { commentsCount: -1 }; break;
+    case "oldest": sortStage = { createdAt: 1 }; break;
+    case "az": sortStage = { title: 1 }; break;
+    case "za": sortStage = { title: -1 }; break;
     case "newest":
-    default:
-      sortStage = { createdAt: -1 };
-      break;
+    default: sortStage = { createdAt: -1 }; break;
   }
 
   const [blogs, total, analyticsResult] = await Promise.all([
-
+    // ================= BLOGS AGGREGATION STAGE =================
     blogModel.aggregate([
       { $match: matchStage },
 
+      // 1. Calculate length configurations safely
       {
         $addFields: {
           likesCount: {
-            $cond: [
-              { $isArray: "$likes" },
-              { $size: "$likes" },
-              0,
-            ],
+            $cond: [{ $isArray: "$likes" }, { $size: "$likes" }, 0],
           },
-
           commentsCount: {
-            $cond: [
-              { $isArray: "$comments" },
-              { $size: "$comments" },
-              0,
-            ],
+            $cond: [{ $isArray: "$comments" }, { $size: "$comments" }, 0],
           },
         },
       },
 
+      // 2. Normalize userId format within the comments array to handle strings or ObjectIds seamlessly
+      {
+        $addFields: {
+          comments: {
+            $cond: [
+              { $isArray: "$comments" },
+              {
+                $map: {
+                  input: "$comments",
+                  as: "c",
+                  in: {
+                    $mergeObjects: [
+                      "$$c",
+                      {
+                        userId: {
+                          $cond: [
+                            { $eq: [{ $type: "$$c.userId" }, "string"] },
+                            { $toObjectId: "$$c.userId" },
+                            "$$c.userId"
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              []
+            ]
+          }
+        }
+      },
+
+      // 3. Lookup across the "users" collection
+      {
+        $lookup: {
+          from: "clientusers",
+          localField: "comments.userId",
+          foreignField: "_id",
+          as: "commentUsers"
+        }
+      },
+
+      // 4. Map populated user object details back into each comment element
+      {
+        $addFields: {
+          comments: {
+            $map: {
+              input: "$comments",
+              as: "comment",
+              in: {
+                $mergeObjects: [
+                  "$$comment",
+                  {
+                    userId: {
+                      $let: {
+                        vars: {
+                          matchedUser: {
+                            $arrayElemAt: [
+                              {
+                                $filter: {
+                                  input: "$commentUsers",
+                                  cond: { $eq: ["$$this._id", "$$comment.userId"] }
+                                }
+                              },
+                              0
+                            ]
+                          }
+                        },
+                        in: {
+                          $cond: [
+                            { $ifNull: ["$$matchedUser", false] },
+                            {
+                              _id: "$$matchedUser._id",
+                              name: "$$matchedUser.name",
+                              avatar: "$$matchedUser.avatar",
+                              email: "$$matchedUser.email"
+                            },
+                            "$$comment.userId" // Fallback: return raw ID if user document doesn't exist
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+
       { $sort: sortStage },
-
       { $skip: parsedOffset },
-
       { $limit: parsedLimit },
 
+      // 5. Select output properties explicitly
       {
         $project: {
           title: 1,
@@ -112,6 +171,12 @@ export const getAllBlogsServices = async ({
           updatedAt: 1,
           likesCount: 1,
           commentsCount: 1,
+          likes: 1,
+
+          "comments._id": 1,
+          "comments.message": 1,
+          "comments.createdAt": 1,
+          "comments.userId": 1
         },
       },
     ]),
@@ -122,81 +187,48 @@ export const getAllBlogsServices = async ({
     // ================= ANALYTICS =================
     blogModel.aggregate([
       { $match: matchStage },
-
       {
         $addFields: {
           likesCount: {
-            $cond: [
-              { $isArray: "$likes" },
-              { $size: "$likes" },
-              0,
-            ],
+            $cond: [{ $isArray: "$likes" }, { $size: "$likes" }, 0],
           },
-
           commentsCount: {
-            $cond: [
-              { $isArray: "$comments" },
-              { $size: "$comments" },
-              0,
-            ],
+            $cond: [{ $isArray: "$comments" }, { $size: "$comments" }, 0],
           },
         },
       },
-
       {
         $group: {
           _id: null,
-
-          totalBlogs: {
-            $sum: 1,
-          },
-
-          totalViews: {
-            $sum: "$views",
-          },
-
-          totalLikes: {
-            $sum: "$likesCount",
-          },
-
-          totalComments: {
-            $sum: "$commentsCount",
-          },
-
-          publishedBlogs: {
-            $sum: {
-              $cond: ["$published", 1, 0],
-            },
-          },
-
-          draftBlogs: {
-            $sum: {
-              $cond: ["$published", 0, 1],
-            },
-          },
+          totalBlogs: { $sum: 1 },
+          totalViews: { $sum: "$views" },
+          totalLikes: { $sum: "$likesCount" },
+          totalComments: { $sum: "$commentsCount" },
+          publishedBlogs: { $sum: { $cond: ["$published", 1, 0] } },
+          draftBlogs: { $sum: { $cond: ["$published", 0, 1] } },
         },
       },
     ]),
   ]);
 
+  const analytics = analyticsResult[0] || {
+    _id: null,
+    totalBlogs: 0,
+    totalViews: 0,
+    totalLikes: 0,
+    totalComments: 0,
+    publishedBlogs: 0,
+    draftBlogs: 0
+  };
+
   return {
-    analytics:
-      analyticsResult[0] || {
-        totalBlogs: 0,
-        totalViews: 0,
-        totalLikes: 0,
-        totalComments: 0,
-        publishedBlogs: 0,
-        draftBlogs: 0,
-      },
-
     blogs,
-
+    analytics,
     pagination: {
       total,
       limit: parsedLimit,
       offset: parsedOffset,
-      hasMore: parsedOffset + parsedLimit < total,
+      hasMore: parsedOffset + blogs.length < total,
     },
   };
 };
@@ -222,7 +254,7 @@ export const deleteBlogService = async (blogId) => {
 
   // Delete the post safely from the collection
   await blogModel.deleteOne({ _id: targetBlogId });
-  
+
   return blog;
 };
 
@@ -239,10 +271,10 @@ export const getSpecificBlogService = async (identifier) => {
     const blog = await blogModel.findById(identifier)
       .populate({
         path: 'comments.userId',
-        select: 'name' 
+        select: 'name'
       });
 
-      console.log('blog :>> ', blog);
+    // console.log('blog :>> ', blog);
 
     return blog;
   } catch (error) {
@@ -257,14 +289,14 @@ export const createBlogService = async (blogDataPayload) => {
     if (existingBlog) {
       return null;
     }
-    console.log('blogDataPayload :>> ', blogDataPayload);
+    // console.log('blogDataPayload :>> ', blogDataPayload);
     const newBlog = await blogModel.create({
       ...blogDataPayload,
       views: blogDataPayload.views || 0,
-      likes:  [],
+      likes: [],
       comments: []
     });
-    console.log('object :>> ', newBlog);
+    // console.log('object :>> ', newBlog);
     return newBlog;
 
   } catch (error) {
@@ -290,7 +322,7 @@ export const updateBlogService = async (blogId, blogDataPayload) => {
     if (blogDataPayload.slug && blogDataPayload.slug !== currentBlog.slug) {
       const slugDuplicateCheck = await blogModel.findOne({ slug: blogDataPayload.slug.toLowerCase() });
       if (slugDuplicateCheck && slugDuplicateCheck._id.toString() !== blogId) {
-        return null; 
+        return null;
       }
     }
 
@@ -322,10 +354,10 @@ export const updateBlogService = async (blogId, blogDataPayload) => {
     const updatedDocument = await blogModel.findByIdAndUpdate(
       blogId,
       { $set: executionPayload },
-      { 
-        new: true, 
-        runValidators: true, 
-        context: 'query' 
+      {
+        new: true,
+        runValidators: true,
+        context: 'query'
       }
     );
 
@@ -367,7 +399,7 @@ export const likeBlogService = async (identifier, userId) => {
 
   return {
     blog: updatedBlog,
-    hasLiked: !hasLiked 
+    hasLiked: !hasLiked
   };
 };
 
