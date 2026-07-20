@@ -11,6 +11,7 @@ export const loginController = async (req, res, next) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: "none",
       maxAge: 60 * 60 * 1000,
+      path: "/" 
     });
     res.status(200).json({
       success: true,
