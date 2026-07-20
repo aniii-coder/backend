@@ -5,11 +5,12 @@ import { login, loginViaGoogle, signup } from "../../services/auth-services/inde
 export const loginController = async (req, res, next) => {
   try {
     const { data, token } = await login(req.body);
-    // console.log('data, token :>> ', data, token);
+    const isProduction = process.env.NODE_ENV === "production";
+    console.log('data, token :>> ', data, token);
     res.cookie("accessToken", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "none",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 60 * 60 * 1000,
       path: "/" 
     });
@@ -21,7 +22,7 @@ export const loginController = async (req, res, next) => {
   } catch (error) {
     next(error);
   } 
-  
+
 };
 
 
