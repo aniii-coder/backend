@@ -4,6 +4,7 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   process.env.CLIENT_URL,
+  process.env.ADMIN_URL,
 ].filter(Boolean);
 
 console.log("Allowed Origins:", allowedOrigins);
