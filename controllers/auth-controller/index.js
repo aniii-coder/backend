@@ -40,6 +40,8 @@ export const signupController = async (req, res, next) => {
 
 export const loginViaGoogleController = async (req, res, next) => {
   try {
+      console.log("========== GOOGLE LOGIN ==========");
+  console.log("Body:", req.body);
     const { token, user } = await loginViaGoogle(req.body.credential);
 
     res.cookie("token", token, {
