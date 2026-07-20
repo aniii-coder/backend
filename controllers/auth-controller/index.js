@@ -8,7 +8,7 @@ export const loginController = async (req, res, next) => {
     const isProduction = process.env.NODE_ENV === "production";
     console.log('data, token :>> ', data, token);
     res.cookie("accessToken", token, {
-      httpOnly: true,
+      httpOnly: false,
       secure: isProduction,
       sameSite: isProduction ? "none" : "lax",
       maxAge: 60 * 60 * 1000,
@@ -16,6 +16,7 @@ export const loginController = async (req, res, next) => {
     });
     res.status(200).json({
       success: true,
+      token: token,
       message: "Login successful",
       data
     });
